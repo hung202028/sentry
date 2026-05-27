@@ -229,6 +229,10 @@ class _ClientConfig:
             "organizations:create-org-control", self.last_org, actor=self.user
         ):
             yield "organizations:create-org-control"
+        if self.last_org and features.has(
+            "organizations:refactor-api-fetch", self.last_org, actor=self.user
+        ):
+            yield "organizations:refactor-api-fetch"
 
     @property
     def needs_upgrade(self) -> bool:

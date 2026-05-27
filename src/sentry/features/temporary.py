@@ -43,7 +43,6 @@ def register_temporary_features(manager: FeatureManager) -> None:
 
     # Organization scoped features that are in development or in customer trials. #
     ###############################################################################
-
     # Enables alert creation on indexed events in UI (use for PoC/testing only)
     manager.add("organizations:alert-allow-indexed", OrganizationFeature, FeatureHandlerStrategy.FLAGPOLE, api_expose=True)
     # Enable AI-based issue detection for an organization
@@ -216,6 +215,8 @@ def register_temporary_features(manager: FeatureManager) -> None:
     manager.add("organizations:preprod-size-monitors-frontend", OrganizationFeature, FeatureHandlerStrategy.FLAGPOLE, api_expose=True)
     # Enable preprod snapshots product feature
     manager.add("organizations:preprod-snapshots", OrganizationFeature, FeatureHandlerStrategy.FLAGPOLE, api_expose=True)
+    # Enable the new apiFetch implementation that uses cell fetch.
+    manager.add("organizations:refactor-api-fetch", OrganizationFeature, FeatureHandlerStrategy.INTERNAL, default=False)
     # Enables the playstation ingestion in relay
     manager.add("organizations:relay-playstation-ingestion", OrganizationFeature, FeatureHandlerStrategy.INTERNAL, api_expose=False)
     # Enables new error processing pipeline in Relay.
