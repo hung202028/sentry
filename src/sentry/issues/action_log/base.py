@@ -192,20 +192,32 @@ def publish_action(
 
     if idempotency_key is None:
         GroupActionLogEntry.objects.create(**kwargs)
-        return
+    else:
+        try:
+            with transaction.atomic(using=router.db_for_write(GroupActionLogEntry)):
+                GroupActionLogEntry.objects.create(**kwargs)
+        except IntegrityError as e:
+            cause = e.__cause__
+            constraint = getattr(getattr(cause, "diag", None), "constraint_name", None)
+            if constraint == "uniq_groupactionlogentry_group_idempotency_key":
+                raise DuplicateActionError(
+                    f"Action already recorded for group {group_id} "
+                    f"with idempotency_key={idempotency_key!r}"
+                ) from e
+            raise
 
-    try:
-        with transaction.atomic(using=router.db_for_write(GroupActionLogEntry)):
-            GroupActionLogEntry.objects.create(**kwargs)
-    except IntegrityError as e:
-        cause = e.__cause__
-        constraint = getattr(getattr(cause, "diag", None), "constraint_name", None)
-        if constraint == "uniq_groupactionlogentry_group_idempotency_key":
-            raise DuplicateActionError(
-                f"Action already recorded for group {group_id} "
-                f"with idempotency_key={idempotency_key!r}"
-            ) from e
-        raise
+    _process_derived_data(group_id)
+
+
+def _process_derived_data(group_id: int) -> None:
+    """Process derived data inline after a log entry is written."""
+    from sentry.issues.derived.processing import process_group_log_batch
+
+    result = process_group_log_batch(group_id)
+    if not result.caught_up:
+        from sentry.tasks.process_group_log import process_group_log_task
+
+        process_group_log_task.delay(group_id)
 
 
 def publish_action_from_context(

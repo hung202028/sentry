@@ -64,6 +64,8 @@ class GroupActionType(IntEnum):
     CREATE_EXTERNAL_ISSUE = 18
     LINK_EXTERNAL_ISSUE = 19
     UNLINK_EXTERNAL_ISSUE = 20
+    AUTOFIX_PR_CREATED = 21
+    RESOLVED_IN_PULL_REQUEST = 22
 
 
 class GroupAction(BaseModel, abc.ABC):
@@ -225,3 +227,31 @@ class UnlinkExternalIssueAction(GroupAction):
     @classmethod
     def get_type(cls) -> GroupActionType:
         return GroupActionType.UNLINK_EXTERNAL_ISSUE
+
+class AutofixPrCreatedAction(GroupAction):
+    """Seer created one or more PRs for this issue.
+
+    Shape mirrors the SEER_PR_CREATED activity payload from
+    ``sentry.seer.entrypoints.operator._create_seer_activity``.
+    """
+
+    run_id: str | None = None
+    pull_requests: list[dict[str, object]] = []
+
+    @classmethod
+    def get_type(cls) -> GroupActionType:
+        return GroupActionType.AUTOFIX_PR_CREATED
+
+
+class ResolvedInPullRequestAction(GroupAction):
+    """Issue resolved via a pull request.
+
+    Shape mirrors the SET_RESOLVED_IN_PULL_REQUEST activity payload from
+    ``sentry.receivers.releases``: the value is a PullRequest model ID.
+    """
+
+    pull_request: int
+
+    @classmethod
+    def get_type(cls) -> GroupActionType:
+        return GroupActionType.RESOLVED_IN_PULL_REQUEST
