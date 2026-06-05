@@ -12,8 +12,10 @@ from rest_framework.request import Request
 
 from sentry import options
 from sentry.issues.action_log.types import SYSTEM_ACTOR, GroupAction, GroupActionActor
+from sentry.issues.derived.processing import process_group_log_batch
 from sentry.issues.groupactionlogentry import GroupActionLogEntry
 from sentry.middleware import is_frontend_request
+from sentry.tasks.process_group_log import process_group_log_task
 from sentry.utils import metrics
 
 logger = logging.getLogger(__name__)
@@ -211,12 +213,8 @@ def publish_action(
 
 def _process_derived_data(group_id: int) -> None:
     """Process derived data inline after a log entry is written."""
-    from sentry.issues.derived.processing import process_group_log_batch
-
     result = process_group_log_batch(group_id)
     if not result.caught_up:
-        from sentry.tasks.process_group_log import process_group_log_task
-
         process_group_log_task.delay(group_id)
 
 
