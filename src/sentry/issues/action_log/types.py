@@ -63,7 +63,7 @@ class GroupActionType(IntEnum):
     UNLINK_EXTERNAL_ISSUE = 20
     AUTOFIX_PR_CREATED = 21
     RESOLVED_IN_PULL_REQUEST = 22
-    ROOT_CAUSE_IDENTIFIED = 24
+    ROOT_CAUSE_IDENTIFIED = 23
     AUTOFIX_CODING_COMPLETE = 24
 
 
@@ -223,6 +223,7 @@ class UnlinkExternalIssueAction(GroupAction):
     @classmethod
     def get_type(cls) -> GroupActionType:
         return GroupActionType.UNLINK_EXTERNAL_ISSUE
+
 
 class AutofixPrCreatedAction(GroupAction):
     run_id: str | None = None
