@@ -271,12 +271,15 @@ class ProjectDebugFile(Model):
             try:
                 # Get the payload and save it to a temporary file.
                 contents = self._get_objectstore_session().get(self.storage_path).payload
-                tmp = tempfile.NamedTemporaryFile(dir=base, delete=False)
-                shutil.copyfileobj(contents, tmp)
-                tmp.flush()
-                tmp_path = tmp.name
-                tmp.close()
-                tmp = None
+                try:
+                    tmp = tempfile.NamedTemporaryFile(dir=base, delete=False)
+                    shutil.copyfileobj(contents, tmp)
+                    tmp.flush()
+                    tmp_path = tmp.name
+                    tmp.close()
+                    tmp = None
+                finally:
+                    contents.close()
 
                 if not os.path.exists(path):
                     os.rename(tmp_path, path)
@@ -301,7 +304,17 @@ class ProjectDebugFile(Model):
 
         if self.storage_path is not None:
             # Objectstore-backed files cannot be referenced by multiple debug file rows.
-            self._get_objectstore_session().delete(self.storage_path)
+            try:
+                self._get_objectstore_session().delete(self.storage_path)
+            except (RequestError, HTTPError):
+                logger.exception(
+                    "debugfile.objectstore_delete_failed",
+                    extra={
+                        "project_debug_file_id": self.id,
+                        "project_id": self.project_id,
+                        "storage_path": self.storage_path,
+                    },
+                )
         elif self.file is not None:
             # If another debug file row still references this File, keep the File.
             # Concurrent last-reference deletes can still leave an unreferenced File
