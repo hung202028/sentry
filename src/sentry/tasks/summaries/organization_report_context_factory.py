@@ -1,5 +1,6 @@
 import sentry_sdk
 
+from sentry import features
 from sentry.constants import DataCategory
 from sentry.models.organization import Organization
 from sentry.models.organizationmember import OrganizationMember
@@ -10,6 +11,7 @@ from sentry.tasks.summaries.utils import (
     ProjectContext,
     fetch_key_error_groups,
     fetch_key_performance_issue_groups,
+    org_key_errors,
     organization_project_issue_substatus_summaries,
     project_event_counts_for_organization,
     project_key_errors,
@@ -110,11 +112,26 @@ class OrganizationReportContextFactory:
     def _append_project_key_errors(self, ctx: OrganizationReportContext) -> None:
         with sentry_sdk.start_span(op="weekly_reports.project_passes"):
             organization = ctx.organization
-            # Run project passes
-            for project in organization.project_set.all():
-                key_errors = project_key_errors(
-                    ctx, project, referrer=Referrer.REPORTS_KEY_ERRORS.value
+            use_batched = features.has(
+                "organizations:weekly-report-batched-key-errors", organization
+            )
+
+            if use_batched:
+                key_errors_by_project = org_key_errors(
+                    ctx, referrer=Referrer.REPORTS_KEY_ERRORS_BATCHED.value
                 )
+                for project_id, key_errors in key_errors_by_project.items():
+                    if project_id not in ctx.projects_context_map:
+                        continue
+                    project_ctx = ctx.projects_context_map[project_id]
+                    assert isinstance(project_ctx, ProjectContext), (
+                        f"Expected a ProjectContext, received {type(project_ctx)}"
+                    )
+                    project_ctx.key_errors_by_id = [
+                        (e["events.group_id"], e["count()"]) for e in key_errors
+                    ]
+
+            for project in organization.project_set.all():
                 if project.id not in ctx.projects_context_map:
                     continue
 
@@ -123,10 +140,14 @@ class OrganizationReportContextFactory:
                     f"Expected a ProjectContext, received {type(project_ctx)}"
                 )
 
-                if key_errors:
-                    project_ctx.key_errors_by_id = [
-                        (e["events.group_id"], e["count()"]) for e in key_errors
-                    ]
+                if not use_batched:
+                    per_project_key_errors = project_key_errors(
+                        ctx, project, referrer=Referrer.REPORTS_KEY_ERRORS.value
+                    )
+                    if per_project_key_errors:
+                        project_ctx.key_errors_by_id = [
+                            (e["events.group_id"], e["count()"]) for e in per_project_key_errors
+                        ]
 
                 key_transactions_this_week = project_key_transactions_this_week(ctx, project)
                 if key_transactions_this_week:
@@ -137,7 +158,6 @@ class OrganizationReportContextFactory:
                     query_result = project_key_transactions_last_week(
                         ctx, project, key_transactions_this_week
                     )
-                    # Join this week with last week
                     last_week_data = {
                         i["transaction_name"]: (i["count"], i["p95"]) for i in query_result["data"]
                     }
