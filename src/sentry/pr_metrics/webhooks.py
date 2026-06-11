@@ -60,6 +60,7 @@ from sentry.pr_metrics.emit import (
     emit_pr_metrics_row,
     needs_judge,
 )
+from sentry.pr_metrics.utils import resolved_group_ids
 from sentry.seer.seer_setup import has_seer_access
 from sentry.utils import metrics
 
@@ -132,15 +133,16 @@ def handle_attribution(
         return
 
     _write_author_attribution(pr, github_user)
-    if pull_request is not None and has_seer_access(organization):
+    if has_seer_access(organization):
         provider_hint = _is_delegated_agent_candidate(pull_request, github_user)
         if provider_hint is not None:
-            # TODO: Fire-and-forget request to Seer when the match endpoint exists.
-            metrics.incr(
-                "pr_metrics.delegated_agent.seer_match.not_implemented",
-                tags={"provider_hint": provider_hint},
-                sample_rate=1.0,
-            )
+            if resolved_group_ids(pr):
+                # TODO: Fire-and-forget request to Seer when the match endpoint exists.
+                metrics.incr(
+                    "pr_metrics.delegated_agent.seer_match.not_implemented",
+                    tags={"provider_hint": provider_hint},
+                    sample_rate=1.0,
+                )
 
 
 def handle_emission(
